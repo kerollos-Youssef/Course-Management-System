@@ -1,6 +1,7 @@
 #include<iostream>
 #include<string>
 #include<fstream>
+#include<iomanip>
 using namespace std;
 class Student;
 class Node{
@@ -281,28 +282,52 @@ class Course{
     }
     return false;
         }
-        void saveStudent(ofstream& file){
-            file<<studentCount<<" ";
-            for (int i = 0; i < studentCount; i++){
-                Node* studentNode = EnrolledStudent.SearchID(studentIDs[i]);
-                string studentName = (studentNode != nullptr) ? studentNode->StudentName : "Unknown";
-                file<<studentIDs[i]<<" "<<studentName<<" "<<studentGrades[i]<<"\n";
 
-            }
-            file<<"\n";
-        }
-        void loadStudent(ifstream& file){
-            file >> studentCount;
+void saveStudent(ofstream& file) {
+    file << studentCount << "\n";
+
     for (int i = 0; i < studentCount; i++) {
+        Node* studentNode = EnrolledStudent.SearchID(studentIDs[i]);
+
+        string studentName =
+            (studentNode != nullptr)
+            ? studentNode->StudentName
+            : "Unknown";
+
+        file << studentIDs[i] << " "
+             << quoted(studentName) << " "
+             << studentGrades[i] << "\n";
+    }
+}
+
+void loadStudent(ifstream& file) {
+    int count;
+
+    if (!(file >> count) || count < 0 || count > 100) {
+        cout << "Invalid student count in course data\n";
+        return;
+    }
+
+    studentCount = 0;
+
+    for (int i = 0; i < count; i++) {
         int id;
         string name;
         double grade;
-        file >> id >> name >> grade;
-        studentIDs[i] = id;
-        studentGrades[i] = grade;
+
+        if (!(file >> id >> quoted(name) >> grade)) {
+            cout << "Error reading enrolled student data\n";
+            studentCount = 0;
+            return;
+        }
+
+        studentIDs[studentCount] = id;
+        studentGrades[studentCount] = grade;
+        studentCount++;
+
         EnrolledStudent.addStudentlast(id, name);
     }
-        }
+}
     };
     class SystemManager;
     class Student:public User{
@@ -385,82 +410,148 @@ class SystemManager{
     int Usercount;
     int coursecount;
     public:
-    void saveData() {
+
+void saveData() {
     ofstream userFile("users.txt");
+
+    if (!userFile.is_open()) {
+        cout << "Error opening users.txt for saving\n";
+        return;
+    }
+
     for (int i = 0; i < Usercount; i++) {
         Student* s = dynamic_cast<Student*>(users[i]);
         Instructor* inst = dynamic_cast<Instructor*>(users[i]);
         Admin* a = dynamic_cast<Admin*>(users[i]);
 
         if (s) {
-            userFile << "STUDENT " << s->getID() << " " << s->getName() << " " <<s->getEmail() << " "
-                     << s->getpassword() << " " << s->getGPA() << "\n";
-        } else if (inst) {
-            userFile << "INSTRUCTOR " << inst->getID() << " " << inst->getName() << " " << inst->getEmail() << " "
-                     << inst->getpassword() << " " << inst->getDepartment() << "\n";
-        } else if (a) {
-            userFile << "ADMIN " << a->getID() << " " << a->getName() << " " << a->getEmail() << " "
-                     << a->getpassword() << "\n";
+            userFile << "STUDENT " << s->getID() << " "
+                     << quoted(s->getName()) << " "
+                     << quoted(s->getEmail()) << " "
+                     << quoted(s->getpassword()) << " "
+                     << s->getGPA() << "\n";
+        }
+        else if (inst) {
+            userFile << "INSTRUCTOR " << inst->getID() << " "
+                     << quoted(inst->getName()) << " "
+                     << quoted(inst->getEmail()) << " "
+                     << quoted(inst->getpassword()) << " "
+                     << quoted(inst->getDepartment()) << "\n";
+        }
+        else if (a) {
+            userFile << "ADMIN " << a->getID() << " "
+                     << quoted(a->getName()) << " "
+                     << quoted(a->getEmail()) << " "
+                     << quoted(a->getpassword()) << "\n";
         }
     }
+
     userFile.close();
+
     ofstream courseFile("courses.txt");
-    for (int i = 0; i < coursecount; i++) {
-        courseFile << courses[i]->getCourseID() << "\n "
-                   << courses[i]->getCourseName() << "\n "
-                   << courses[i]->getMaxCapacity() << " \n"
-                   << courses[i]->getInstructorID() << "\n";
-                   courses[i]->saveStudent(courseFile);
+
+    if (!courseFile.is_open()) {
+        cout << "Error opening courses.txt for saving\n";
+        return;
     }
+
+    for (int i = 0; i < coursecount; i++) {
+        courseFile << courses[i]->getCourseID() << "\n"
+                   << quoted(courses[i]->getCourseName()) << "\n"
+                   << courses[i]->getMaxCapacity() << "\n"
+                   << courses[i]->getInstructorID() << "\n";
+
+        courses[i]->saveStudent(courseFile);
+    }
+
     courseFile.close();
 }
 
+
 void loadData() {
     ifstream userFile("users.txt");
+
     if (userFile.is_open()) {
         string type;
+
         while (userFile >> type) {
             if (type == "STUDENT") {
-                int id; string name, Email, password; double gpa;
-                userFile >> id >> name >> Email >> password >> gpa;
+                int id;
+                string name, Email, password;
+                double gpa;
+
+                if (!(userFile >> id >> quoted(name)
+                      >> quoted(Email) >> quoted(password) >> gpa)) {
+                    cout << "Error reading student data\n";
+                    break;
+                }
+
                 AddUser(new Student(id, name, Email, password, gpa));
-            } else if (type == "INSTRUCTOR") {
-                int id; string name, Email, password, dept;
-                userFile >> id >> name >> Email >> password >> dept;
+            }
+            else if (type == "INSTRUCTOR") {
+                int id;
+                string name, Email, password, dept;
+
+                if (!(userFile >> id >> quoted(name)
+                      >> quoted(Email) >> quoted(password)
+                      >> quoted(dept))) {
+                    cout << "Error reading instructor data\n";
+                    break;
+                }
+
                 AddUser(new Instructor(id, name, Email, password, dept));
-            } else if (type == "ADMIN") {
-                int id; string name, Email, password;
-                userFile >> id >> name >> Email >> password;
+            }
+            else if (type == "ADMIN") {
+                int id;
+                string name, Email, password;
+
+                if (!(userFile >> id >> quoted(name)
+                      >> quoted(Email) >> quoted(password))) {
+                    cout << "Error reading admin data\n";
+                    break;
+                }
+
                 AddUser(new Admin(id, name, Email, password));
             }
+            else {
+                cout << "Unknown user type: " << type << "\n";
+                break;
+            }
         }
+
         userFile.close();
     }
 
     ifstream courseFile("courses.txt");
+
     if (courseFile.is_open()) {
-        int id, cap, instID; string name;
+        int id, cap, instID;
+        string name;
+
         while (courseFile >> id) {
-            courseFile.ignore(); 
-            getline(courseFile,name);
-            courseFile >> cap >> instID;
+            if (!(courseFile >> quoted(name) >> cap >> instID)) {
+                cout << "Error reading course data\n";
+                break;
+            }
+
             Course* c = new Course(id, name, cap, instID);
             addCourse(c);
+
             c->loadStudent(courseFile);
 
-            
             for (int i = 0; i < Usercount; i++) {
                 Student* st = dynamic_cast<Student*>(users[i]);
-                if (st != nullptr) {
-                    if (c->isStudentEnrroled(st->getID())) {
-                        st->addEnrolledCourseDirectly(c);
-                    }
+
+                if (st != nullptr && c->isStudentEnrroled(st->getID())) {
+                    st->addEnrolledCourseDirectly(c);
                 }
             }
         }
+
         courseFile.close();
     }
-}    SystemManager(){
+}
+  SystemManager(){
         Usercount=0;
         coursecount=0;
         System=new CustomStudentList();
@@ -629,11 +720,7 @@ void Student::HandleMenu(SystemManager& Sys){
                     cout<<"__You have reached the maximum number of enrolled courses__"<<"\n";
                 }
             }
-            /*else{
-
-                cout<<"__Course not found__"<<"\n";
-
-            }*/
+          
         }
         else if(i==2){
             cout<<"__Enrolled Courses__"<<"\n";
